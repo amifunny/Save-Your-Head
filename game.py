@@ -37,15 +37,17 @@ pygame.display.set_caption("SAVE YOUR HEAD")
 
 class Player(pygame.sprite.Sprite):
   
-  def __init__(self,init_pos_vec):
+  def __init__(self,init_pos_vec,name,dash_pos):
     super().__init__()
 
-    # Image for player avatar
-    self.image = pygame.image.load("penguin.png")
     # h (height) and w (width) of player
     self.h = 50
     self.w = 50
-
+    
+    # Image for player avatar
+    self.image = pygame.image.load("penguin.png")
+    self.image = pygame.transform.scale( self.image,(self.w,self.h) )
+    
     # Create the body surface of avatar
     self.surf = pygame.Surface((self.h,self.w))
     self.rect = self.surf.get_rect()
@@ -53,36 +55,45 @@ class Player(pygame.sprite.Sprite):
     self.rect.width = self.w
     self.rect.height = self.h
 
-
     self.pos = init_pos_vec
     self.vel = vec(0,0)
     self.acc = vec(0,G)
 
+    self.power = G
+
+    self.alive = True
+
     self.jumping = False
     self.score = 0
 
+    self.dash = PlayerDash(name,dash_pos)
+
   def move_WASD(self):
     
-    self.acc = vec(0,G)
+    self.acc = vec(0,self.power)
 
     pressed_key = pygame.key.get_pressed()
     if pressed_key[K_a]:
-      self.acc.x = -G
+      self.acc.x = -self.power
     if pressed_key[K_d]:
-      self.acc.x = G
-  
+      self.acc.x = self.power
+    if pressed_key[K_e]:
+      shoot_bullet()
+
     self.apply_physics()
 
   def move_arrows(self):
     
-    self.acc = vec(0,G)
+    self.acc = vec(0,self.power)
 
     pressed_key = pygame.key.get_pressed()
     if pressed_key[K_LEFT]:
-      self.acc.x = -G
+      self.acc.x = -self.power
     if pressed_key[K_RIGHT]:
-      self.acc.x = G
-
+      self.acc.x = self.power
+    if pressed_key[K_RCTRL]:
+      shoot_bullet()
+    
     self.apply_physics()  
 
   def apply_physics(self):
@@ -98,6 +109,9 @@ class Player(pygame.sprite.Sprite):
        
     self.rect.midbottom = self.pos
 
+  def shoot_bullet(self):
+    all_sprites.add( Bullet() )
+
   def update(self):
 
     hits = pygame.sprite.spritecollide( self , platforms , False )
@@ -109,18 +123,11 @@ class Player(pygame.sprite.Sprite):
           self.pos.y = hit.rect.top+1
           self.vel.y = 0
 
-    # Hits between 
-    p_hits = pygame.sprite.spritecollide( self , players , False )
-    if len(players)==len(p_hits):
-
-      for p in players:
-        if p!=self:
-          other_player = p
-
-      if self.rect.left<=other_player.rect.right:
-        self.rect.left = other_player.rect.right+1
-        self.vel.x = abs(other_player.vel.x)
-
+    for util in pygame.sprite.spritecollide(self,util_group,True):
+      if util.utility_type!=1:
+        self.dash.update( util.utility_type )
+      else:
+        self.alive = False
 
   def jump(self):
     # hits = pygame.sprite.spritecollide(self, platforms , False)
@@ -134,8 +141,87 @@ class Player(pygame.sprite.Sprite):
       self.vel.y = -3
 
   def draw(self,surface):
-    self.image = pygame.transform.scale( self.image,(50,50) )
     surface.blit( self.image,self.rect )
+    self.dash.draw(surface,self)
+
+bullet_group = pygame.sprite.Group()
+class Bullet(pygame.sprite.Sprite):
+  
+  def __init__(self,direction):
+    super().__init__()
+    self.speed = direction*2.0
+    self.image = "shot.png"
+  
+    self.w = 50
+    self.h = 10
+
+    self.surface = pygame.Surface( (self.w,self.h) )
+    self.rect = self.surface.get_rect()
+
+  def move(self):
+    self.rect.move_ip( self.speed , 0 )
+
+  def check_hit():
+
+    for hit_player in pygame.sprite.spritecollide(self,players,False):
+      hit_player.alive = False
+      self.kill()
+
+    for plat_hit in pygame.sprite.spritecollide(self,platforms,False)
+      self.kill()
+
+  def draw(self,surface):
+    surface.blit( self.image,self.rect )
+    check_hit()
+    self.move()
+
+class PlayerDash():
+  def __init__(self,player_name,init_pos):
+    
+    self.bullets = 0
+    self.direction = 1
+    self.name = player_name
+    self.pos_topleft = init_pos
+    
+    self.double_power_end = 0
+    self.double_power = False
+
+  def update(self,util_type,player):
+    
+    if util_type==2:
+      self.bullets += 3
+    
+    elif util_type==0:
+
+      self.power = 2*G
+      self.double_power = True
+      if pygame.time.get_ticks()>double_power_end:
+        self.double_power_end = pygame.time.get_ticks() + 15000
+      else:
+        self.double_power_end += 15000
+
+  def draw(self,surface,player):
+
+    if pygame.time.get_ticks()>double_power_end:
+      self.double_power = False
+      self.power = G
+
+    font = pygame.font.SysFont("Dashfont.ttf",20)
+
+    y_pos = self.pos_topleft.y
+    sys_text = font.render( "Player {}".format(self.name),True,screen_color )
+    display_surface.blit( sys_text , (self.pos_topleft.x,y_pos) )
+
+    if self.bullets>0:
+      y_pos += 20
+      sys_text = font.render( "{} x Shots".format(self.bullets),True,screen_color )
+      display_surface.blit( sys_text , (self.pos_topleft.x,y_pos ) )
+
+    if self.double_power:
+      y_pos += 20
+      sys_text = font.render( "2X Power",True,screen_color )
+      display_surface.blit( sys_text , (self.pos_topleft.x,y_pos ) )
+    
 
 class Platform(pygame.sprite.Sprite):
   def __init__(self):
@@ -168,8 +254,8 @@ class Platform(pygame.sprite.Sprite):
 
 
 # Global Elements
-player1 = Player(vec(100,HEIGHT/2))
-player2 = Player(vec(WIDTH-100,HEIGHT/2))
+player1 = Player(vec(100,HEIGHT/2),"Red",vec(50,50))
+player2 = Player(vec(WIDTH-100,HEIGHT/2),"Green",vec(WIDTH-150,50))
 players = pygame.sprite.Group()
 base_plat = Platform()
 thorn_plat = Platform()
@@ -268,6 +354,43 @@ def ScoreBoard(round_num,score_tuple):
   display_surface.blit( score_division , (board_pos[0]+25,board_pos[1]+50) )
 
 
+util_group = pygame.sprite.Group()
+
+utility_dict = {
+  0 : '2x.png',
+  1 : 'bomb.png',
+  2 : 'ammo.png'
+}
+
+class UtilityComponent(pygame.sprite.Sprite):
+  
+  def  __init__(self,utility_num):
+   
+    super().__init__()
+
+    self.visible = True
+    self.w = 30
+    self.h = 30
+
+    self.image = pygame.image.load( utility_dict[utility_num] )
+    self.image = pygame.transform.scale( self.image,(self.w,self.h) )
+
+    self.pos = vec(0,0)
+
+    self.utility_type = utility_num
+
+    self.surf = pygame.Surface( (self.w,self.h) )
+    self.rect = self.surf.get_rect()
+
+    self.speed = -1.0
+
+  def move(self):
+    self.rect.move_ip(0,self.speed)
+
+  def draw(self,surface):
+    surface.blit( self.image , self.rect )
+
+
 def PlatformGeneration():
   
   global newPlatGenTime
@@ -287,6 +410,15 @@ def PlatformGeneration():
                 )
 
       p.speed = PLATSPEED
+
+      if random.choices([0,1],[0.66,0.33])[0]==0:
+        util = UtilityComponent( random.choices( list(utility_dict.keys()) )[0] )
+        util.speed = PLATSPEED
+        util.rect.midbottom = (p.rect.centerx,p.rect.top-(5))
+
+        util_group.add(util)
+        all_sprites.add(util)
+  
       platforms.add(p)
       all_sprites.add(p)
 
@@ -300,6 +432,10 @@ def DestroyOutboundPlats():
   for each_plat in platforms:
     if each_plat.rect.bottom<=30 and each_plat!=thorn_plat:
       each_plat.kill()
+
+  for each_util in util_group:
+    if each_util.rect.bottom<=30:
+      each_util.kill()
 
 def check_plat_insanity(platform,group):
 
@@ -359,12 +495,13 @@ def CheckIfRoundOver():
 
   # Check for player collision
   # and is one player is beneath another
+
   if pygame.sprite.collide_rect(player1,player2):
     
-    if player1.rect.bottom<=player2.rect.top+2:
+    if player1.rect.bottom<=player2.rect.top:
       player1.score += 1
       return 1
-    if player2.rect.bottom<=player2.rect.top+2:
+    if player2.rect.bottom<=player2.rect.top:
       player2.score += 1
       return 2
 
@@ -377,12 +514,15 @@ def CheckIfRoundOver():
     player1.score += 1
     return 1
 
+  if not player1.alive:
+    return 1
+  if not player2.alive:
+    return 1
+  
+
   return False
 
 def CheckIfGameOver():  
-
-  print(player1.score)
-  print(math.ceil(ROUNDS/2))
 
   if player1.score>=math.ceil(ROUNDS/2):
     return 1
@@ -394,6 +534,37 @@ def CheckIfGameOver():
 
 def PlayBackMusic():
   pass
+
+def PlayerInteract():
+
+  p_hits = pygame.sprite.spritecollide( player1 , players , False )
+  # Check if both player are collided
+  if len(players)==len(p_hits):
+
+    net_vel = player1.vel.x - player2.vel.x
+    center_dist = player1.rect.centerx - player2.rect.centerx
+    overlap_dist = player1.w - abs(center_dist)
+
+    dist_sign = center_dist/abs(center_dist)
+
+    if overlap_dist>0:
+
+      overlap_dist = overlap_dist/2
+
+      player1.pos.x += dist_sign*overlap_dist
+      player2.pos.x += -dist_sign*overlap_dist
+
+      player1.rect.centerx += dist_sign*overlap_dist
+      player2.rect.centerx += -dist_sign*overlap_dist
+
+      if player1.vel.x>player2.vel.x:
+
+        if abs(player1.vel.x)>=abs(player2.vel.x):
+          player2.vel.x = net_vel
+          player1.vel.x = 0
+        else:
+          player1.vel.x = net_vel
+          player2.vel.x = 0 
 
 
 def RoundLoop(current_round):
@@ -455,11 +626,15 @@ def RoundLoop(current_round):
 
     for plat in platforms:
       plat.move()
+    for util in util_group:
+      util.move()
+    
+    # round_result = CheckIfRoundOver()
+    # if not isinstance( round_result , bool ):
+    #     print("ROUND OVER" ) 
+    #     return
 
-    round_result = CheckIfRoundOver()
-    if not isinstance( round_result , bool ):
-        print("ROUND OVER" ) 
-        return
+    PlayerInteract()
 
 main()
 
