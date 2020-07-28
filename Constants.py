@@ -1,8 +1,0 @@
-# Control Variables
-HEIGHT = 650
-WIDTH = 700
-PREV_HEIGHT = 200
-G = 1.0
-FRIC = -0.12
-FPS = 45
-ROUNDS = 3

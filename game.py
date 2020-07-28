@@ -25,6 +25,7 @@ ROUNDS = 3
 
 # Colors
 screen_bg = (52,120,195)
+screen_dark_bg = (28,71,119)
 screen_color = (255,255,255)
 GREEN = (29,141,102)
 dash_color = (245,122,34)
@@ -40,13 +41,19 @@ newSpeedElapse = 15000
 PLATSPEED = -2.0
 
 PLAYER_NAMES = ['RED','GREEN']
+PLAYER_IMG = [
+  "image_assets/players/parrot.png",
+  "image_assets/players/penguin.png",
+]
 
 FramePerSec = pygame.time.Clock()
 
 # Set Attributes of popup game window
 display_surface = pygame.display.set_mode( (WIDTH,HEIGHT) )
 pygame.display.set_caption("SAVE YOUR HEAD")
-pygame.display.set_icon("game_icon_small.png")
+
+game_icon = pygame.image.load("game_icon_small.png")
+pygame.display.set_icon( game_icon )
 
 
 # -------------------------------------------------------------------------
@@ -189,6 +196,7 @@ class Player(pygame.sprite.Sprite):
 
           if self.jumping:
             # SOUND
+            print("should play")
             pygame.mixer.Sound('sound/platform_jump.ogg').play()
 
           self.jumping = False
@@ -199,10 +207,9 @@ class Player(pygame.sprite.Sprite):
       # If its a bomb, player dies
       if util.utility_type==BOMB_U:
         # Set Explosion
+        make_explosion( util.rect.centerx , util.rect.centery )
         self.alive = False
       else:
-        # SOUND
-        pygame.mixer.Sound('sound/util_taken.ogg').play()
         self.dash.update( util.utility_type,self )
 
   def jump(self):
@@ -247,14 +254,17 @@ class PlayerDash():
     # When Ammo utility is taken,
     # Increse number of bullets.
     if util_type==AMMO_U:
+      pygame.mixer.Sound('sound/ammo_util.wav').play()
       self.bullets += 3
     
     elif util_type==DOUBLE_U:
 
+      # SOUND
+      pygame.mixer.Sound('sound/util_taken.ogg').play()
+      
       # Double the power of player,
       # i.e its x-axis accerleration increases
-
-      self.power.y = 2*G
+      player.power.x = 2*G
       self.double_power = True
       if pygame.time.get_ticks()>self.double_power_end:
         self.double_power_end = pygame.time.get_ticks() + 10000
@@ -270,7 +280,7 @@ class PlayerDash():
 
     # Render info of Players' utilities
 
-    font = pygame.font.SysFont("fonts/Dashfont.ttf",30)
+    font = pygame.font.Font("fonts/EvilEmpire.ttf",20)
 
     y_pos = self.pos_topleft.y
     sys_text = font.render( "Player {}".format(self.name),True,dash_color )
@@ -296,7 +306,8 @@ class Bullet(pygame.sprite.Sprite):
     super().__init__()
 
     self.speed = direction*4.0
-  
+    self.direction = direction
+
     self.w = 50
     self.h = 20
 
@@ -310,6 +321,9 @@ class Bullet(pygame.sprite.Sprite):
         center = ( direction*(self.w*3/2)+pos.x , pos.y)
       )
 
+    # SOUND
+    pygame.mixer.Sound("sound/bullet_shot.wav").play()
+
   def move(self):
     # Moves left in left if speed is -ve,
     # else right for positive
@@ -322,11 +336,17 @@ class Bullet(pygame.sprite.Sprite):
     for hit_player in pygame.sprite.spritecollide(self,players,False):
       hit_player.alive = False
       # Explosion
+      make_explosion(
+        self.rect.centerx+self.direction*(self.w/2) , self.rect.centery
+      )
       self.kill()
 
     # Bullet on touching platform just explodes
     for plat_hit in pygame.sprite.spritecollide(self,platforms,False):
       # Explosion
+      make_explosion(
+        self.rect.centerx+self.direction*(self.w/2) , self.rect.centery
+      )
       self.kill()
 
     if self.rect.left>WIDTH or self.rect.right<0:
@@ -356,13 +376,11 @@ def PlayerInteract():
         if player==other_player: continue
 
         # Distance between center points
-        center_dist = player.rect.centerx - other_player.rect.centerx
+        direction = other_player.rect.centerx - player.rect.centerx
+
         # Amount of distance between center is less than with of player
         # is overlapping distance
-        overlap_dist = player1.w - abs(center_dist)
-
-        # Vector of distance
-        direction = other_player.rect.centerx - player.rect.centerx
+        overlap_dist = player1.w - abs(direction)
 
         if abs(direction)==0:
           direction = 0
@@ -380,15 +398,15 @@ def PlayerInteract():
 # -- Platform Class Renders and moves it upwards
 
 class Platform(pygame.sprite.Sprite):
+
   def __init__(self):
     super().__init__()
 
-    self.image = pygame.image.load("images_assets/platform.png")
-    self.image = pygame.transform.scale( self.image,(self.width,self.height) )
-
-    # Initialize random width
+     # Initialize random width
     self.width = random.randint(int(WIDTH/4),int(WIDTH/3))
     self.height = 30
+
+    self.image = pygame.image.load("image_assets/platform.png")
 
     self.surf = pygame.Surface( (self.width,self.height) )
     self.surf.fill((random.randint(0,255),random.randint(0,255),random.randint(0,255)))
@@ -405,6 +423,7 @@ class Platform(pygame.sprite.Sprite):
       self.rect.move_ip(0,self.speed)
 
   def draw(self,surface):
+    self.image = pygame.transform.scale( self.image,(self.width,self.height) )
     surface.blit(self.image,self.rect)
 
 # -- Generate new platform at bottom of screen
@@ -422,7 +441,11 @@ def PlatformGeneration():
   if currentTimePoint>=newPlatGenTime:
       
       # Set new platform genration time point
-      newPlatGenTime += newPlatGenElapse
+      newPlatGenTime = currentTimePoint + newPlatGenElapse
+
+      print("Platform generated")
+      print(newPlatGenTime)
+      print(pygame.time.get_ticks())
 
       p  = Platform()
       p.rect.center = (
@@ -434,7 +457,7 @@ def PlatformGeneration():
 
       # Not every platform will have some powerups,
       # Some probabilty is set to make powerups rare
-      if random.choices([0,1],[0.8,0.2])[0]==0:
+      if random.choices([0,1],[0.8,0.2])[0]==1:
         # Also Laser Bomb Probability is more, than other utilities
         util = UtilityComponent( random.choices( list(utility_dict.keys()) , [0.3,0.5,0.2] )[0] )
         util.speed = PLATSPEED
@@ -466,15 +489,21 @@ def DestroyOutbounds():
         LaserShoot(each_util.rect.left)
       each_util.kill()
 
+# ------------------------------------------------------------
+
+# Images dict of all utilities
 utility_dict = {
-  0 : '2x.png',
-  1 : 'bomb.png',
-  2 : 'ammo.png'
+  0 : 'image_assets/util/2x.png',
+  1 : 'image_assets/util/bomb.png',
+  2 : 'image_assets/util/ammo.png'
 }
 
 DOUBLE_U = 0
 BOMB_U = 1
 AMMO_U = 2
+
+# -- Render Utilites that are powerup and laser BOMBS
+#    and move with speed set by their platforms speed
 
 class UtilityComponent(pygame.sprite.Sprite):
   
@@ -504,9 +533,6 @@ class UtilityComponent(pygame.sprite.Sprite):
   def draw(self,surface):
     surface.blit( self.image , self.rect )
 
-
-
-
 def check_plat_insanity(platform,group):
 
   if pygame.sprite.spritecollideany( platform,group ):
@@ -517,32 +543,162 @@ def check_plat_insanity(platform,group):
         return True
     return False
 
+# ------------------------------------------------------
 
+# -- Laser Object that is generated when Bomb reaches top
 
+class Laser(pygame.sprite.Sprite):
+  
+  def __init__(self,offset_x):
+    
+    super().__init__()
+
+    self.w = 10
+    self.h = base_plat.rect.bottom
+
+    # List all animations images in directory
+    self.laser_beam_img = os.listdir('image_assets/laser/laser_beam')
+    self.laser_blast_img = os.listdir('image_assets/laser/laser_blast')
+
+    # Counter for images index 
+    self.beam_ctr = 0
+    self.blast_ctr = 0
+
+    self.offset_x = offset_x
+    # Time point to stop the laser
+    self.end_time = pygame.time.get_ticks()+4000
+
+    self.rect = pygame.Rect( (self.offset_x,0) , (self.w,self.h) )
+
+    # SOUND
+    pygame.mixer.Sound("sound/laser_beam.ogg").play()
+
+  def draw(self,surface):
+
+    laser_img = pygame.image.load( 'image_assets/laser/laser_beam/'+self.laser_beam_img[self.beam_ctr])
+    laser_img = pygame.transform.scale( laser_img , (self.w,self.h) )
+    surface.blit( laser_img , ( self.offset_x,0 ) )
+
+    # Increment counter
+    self.beam_ctr += 1
+    self.beam_ctr = self.beam_ctr%len(self.laser_beam_img)
+
+    laserb_img = pygame.image.load( 'image_assets/laser/laser_blast/'+self.laser_blast_img[self.blast_ctr])
+    laserb_img = pygame.transform.scale( laserb_img , (2*self.w,2*self.w) )
+    surface.blit( laserb_img , ( self.offset_x-self.w/2 , base_plat.rect.top-self.w ) )
+    
+    # Increment counter
+    self.blast_ctr += 1
+    self.blast_ctr = self.blast_ctr%len(self.laser_blast_img)
+
+# -- Create Laser object that takes the offset x-coordinate to draw laser
+def LaserShoot(offset_x):
+  newLaser = Laser(offset_x)
+  laser_group.add(newLaser)
+  all_sprites.add(newLaser)
+
+def laser_update():
+
+  # Check if laser collide withany player,
+  # that make player dead
+  for player in players:
+    if pygame.sprite.spritecollideany( player , laser_group , False ):
+      player.alive = False
+
+  # Remove the laser after the `end_time`
+  for each_laser in laser_group:
+    if each_laser.end_time<pygame.time.get_ticks():
+      each_laser.kill()
+
+# --------------------------------------------------------
+
+# -- Explosion class that render and animate blast
+class Explosion(pygame.sprite.Sprite):
+  
+  def __init__(self,exp_x,exp_y):
+    
+    super().__init__()
+
+    self.w = 30
+    self.h = 30
+
+    # List all animations images in directory
+    self.explosion_img = os.listdir('image_assets/blast')
+
+    self.exp_ctr = 0
+
+    self.exp_x = exp_x
+    self.exp_y = exp_y
+
+    # Time point to stop the laser
+    self.end_time = pygame.time.get_ticks()+500
+
+    # SOUND
+    pygame.mixer.Sound("sound/explosion.wav").play()
+
+  def draw(self,surface):
+
+    exp_img = pygame.image.load( 'image_assets/blast/'+self.explosion_img[self.exp_ctr])
+    exp_img = pygame.transform.scale( exp_img , (self.w,self.h) )
+
+    image_rect = exp_img.get_rect( center=( self.exp_x,self.exp_y ) )
+
+    surface.blit( exp_img , image_rect )
+
+    # Increment counter
+    self.exp_ctr += 1
+    self.exp_ctr = self.exp_ctr%len(self.explosion_img)
+
+def make_explosion(exp_x,exp_y):
+  print(exp_x,exp_y)
+  exp_object = Explosion(exp_x,exp_y)
+  all_sprites.add( exp_object )
+  explosion_group.add( exp_object )
+
+def explosion_update():
+
+  # Remove the blast animation after the `end_time`
+  for each_explosion in explosion_group:
+    if each_explosion.end_time<pygame.time.get_ticks():
+      each_explosion.kill()
+
+# -------------------------------------------------------
 
 # Global Elements
-player1 = Player(vec(100,HEIGHT/2),"Red",vec(50,50))
-player2 = Player(vec(WIDTH-100,HEIGHT/2),"Green",vec(WIDTH-150,50))
+score_tuple = ( 0 , 0 )
+
+player1 = Player(vec(100,HEIGHT/2),PLAYER_IMG[0],PLAYER_NAMES[0],vec(50,50))
+player2 = Player(vec(WIDTH-100,HEIGHT/2),PLAYER_IMG[1],PLAYER_NAMES[1],vec(WIDTH-150,50))
 players = pygame.sprite.Group()
+
 base_plat = Platform()
 thorn_plat = Platform()
+
 all_sprites = pygame.sprite.Group()
 platforms = pygame.sprite.Group()
 util_group = pygame.sprite.Group()
+laser_group = pygame.sprite.Group()
+explosion_group = pygame.sprite.Group()
 
 def initZeroScore():
-  player1.score = 0
-  player2.score = 0
+  global score_tuple
+  score_tuple = (0,0)
+
+# -- Initialize all global elements used for every new round
 
 def initGlobalElements():
 
   global player1,player2
   # -- Our Box Players
-  player1 = Player(vec(100,HEIGHT/2),"Red",vec(50,50))
-  player2 = Player(vec(WIDTH-100,HEIGHT/2),"Green",vec(WIDTH-150,50))
+  player1 = Player(vec(100,HEIGHT/2),PLAYER_IMG[0],PLAYER_NAMES[0],vec(50,50))
+  player2 = Player(vec(WIDTH-100,HEIGHT/2),PLAYER_IMG[1],PLAYER_NAMES[1],vec(WIDTH-150,50))
   player1.pos = vec(100,HEIGHT/2)
   player1.power.x = G
   player2.pos = vec(WIDTH-100,HEIGHT/2)
+
+  player1.score = score_tuple[0]
+  player2.score = score_tuple[1]
+
   players.add( player1 )
   players.add( player2 )
 
@@ -556,7 +712,7 @@ def initGlobalElements():
   # -- Top Danger Thorns
   thorn_plat.width = WIDTH
   thorn_plat.height = 30
-  thorn_plat.image = pygame.image.load("thorn.png")
+  thorn_plat.image = pygame.image.load("image_assets/thorn.png")
   thorn_plat.image = pygame.transform.flip(thorn_plat.image,False,True)
   thorn_plat.surf = pygame.Surface((thorn_plat.width,thorn_plat.height))
   for i in range(0,WIDTH,30):
@@ -574,16 +730,52 @@ def initGlobalElements():
   platforms.add(base_plat)
   platforms.add(thorn_plat)
 
+# ---------------------------------------------------
+
+# -- Render the welcome page shown
+#    at start of game
+
 def ShowStartScreen():
-  
-  font = pygame.font.SysFont("ARIAL",50)
-  welcome1 = font.render( "HEY THERE! WELCOME",True,screen_color )
-  welcome2 = font.render( "Press Enter to Play",True,screen_color )
-  
+
+  wooden_font = pygame.font.Font("fonts/Wooden.ttf",50)
+  font = pygame.font.SysFont("fonts/EvilEmpire.ttf",50)
+
   display_surface.fill( screen_bg )
 
-  display_surface.blit( welcome1 , (WIDTH/2-200,HEIGHT/2-150) )
-  display_surface.blit( welcome2 , (WIDTH/2-200,HEIGHT/2) )
+  game_image = pygame.image.load( 'game_icon_blue.png' )
+  game_image = pygame.transform.scale( game_image , (200,200) )
+  rect = game_image.get_rect( center=(WIDTH/2,200) )
+  display_surface.blit( game_image , rect )
+
+  welcome1 = wooden_font.render( "Save-Your-Head",True,screen_color )
+  rect = welcome1.get_rect( center=(WIDTH/2,325) )
+  display_surface.blit( welcome1 , rect )
+
+  score_input_label = font.render( "Number of Rounds ",True,screen_color )
+  rect = score_input_label.get_rect( center=(WIDTH/2-50,450) )
+  display_surface.blit( score_input_label , rect )
+
+  score_input = font.render( "  {}  ".format(ROUNDS) ,True,screen_color,screen_dark_bg )
+  rect = score_input.get_rect( center=(rect.right+50,450) )
+  rect.height = 50
+  rect.width = 100
+
+  display_surface.blit( score_input , rect )
+
+  pygame.draw.polygon(display_surface, screen_color, (
+      (rect.left,rect.top-5), (rect.left+27, rect.top-30),(rect.left+54, rect.top-5))
+  )
+
+  pygame.draw.polygon(display_surface, screen_color, (
+      (rect.left,rect.top+40), (rect.left+27, rect.top+65),(rect.left+54, rect.top+40))
+  )
+
+  welcome2 = font.render( "Press Enter to Play",True,screen_color,screen_dark_bg )
+  rect = score_input_label.get_rect( center=(WIDTH/2,550) )
+  display_surface.blit( welcome2 , rect )
+
+# -- Render after rounds are over,
+#    show winner name and option to play again
 
 def ShowWinScreen(winner_num):
   
@@ -591,7 +783,7 @@ def ShowWinScreen(winner_num):
 
     for event in pygame.event.get():
       if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-        return 
+        return
       if event.type == QUIT or (event.type==pygame.KEYDOWN and event.key==pygame.K_ESCAPE):
         pygame.quit()
         sys.exit()    
@@ -600,19 +792,30 @@ def ShowWinScreen(winner_num):
     display_surface.fill( screen_bg )
         
     # -- Display end screen
-    font = pygame.font.SysFont("ARIAL",40)
+    font = pygame.font.Font("fonts/EvilEmpire.ttf",30)
+    wooden_font = pygame.font.Font("fonts/Wooden.ttf",50)
 
-    sys_text = font.render( "GAME OVER",True,screen_color )
-    display_surface.blit( sys_text , (WIDTH/2-150,HEIGHT/2-100) )
-    sys_text = font.render( "Player {} WINS!".format(winner_num),True,screen_color )
-    display_surface.blit( sys_text , (WIDTH/2-150,HEIGHT/2-50) )
+    sys_text = wooden_font.render( "GAME OVER",True,screen_color )
+    rect = sys_text.get_rect(center=(WIDTH/2,HEIGHT/2-150))
+    display_surface.blit( sys_text , rect )
+
+    sys_text = font.render( "Player {} WINS!".format( PLAYER_NAMES[winner_num-1] ),True,screen_color )
+    rect = sys_text.get_rect(center=(WIDTH/2,HEIGHT/2-50))
+    display_surface.blit( sys_text , rect )
+
     sys_text = font.render( "Press Esc to Exit",True,screen_color )
-    display_surface.blit( sys_text , (WIDTH/2-150,HEIGHT/2) )
+    rect = sys_text.get_rect(center=(WIDTH/2,HEIGHT/2))
+    display_surface.blit( sys_text , rect )
+
     sys_text = font.render( "Press Enter to Play Again",True,screen_color )
-    display_surface.blit( sys_text , (WIDTH/2-150,HEIGHT/2+50) )
+    rect = sys_text.get_rect(center=(WIDTH/2,HEIGHT/2+50))
+    display_surface.blit( sys_text , rect )
   
     pygame.display.update()
     FramePerSec.tick(FPS)
+
+# -- Score board rendering number of rounds won by 
+#    each player
 
 def ScoreBoard(round_num,score_tuple):
 
@@ -624,23 +827,35 @@ def ScoreBoard(round_num,score_tuple):
   display_surface.blit( rounds , board_pos )
   display_surface.blit( score_division , (board_pos[0]+25,board_pos[1]+50) )
 
+# -----------------------------------------------------------
 
-
-
+# -- Handle when round is over and 
+#    all spirites
 
 def RoundOver():
 
+  pygame.mixer.music.pause()
+
+  global score_tuple
+  score_tuple = (player1.score,player2.score)
+
   # -- Play Music
-  pygame.mixer.Sound("end.wav").play()
+  pygame.mixer.Sound("sound/end.wav").play()
+
+  time.sleep(1)
 
   # -- Delete all components
   for ele in all_sprites:
       ele.kill()
-      time.sleep(1)
+
+
+# -- Main function to handle game states
+#    and handle game loop for each round
 
 def main():
 
   shouldStart = False
+  global ROUNDS
 
   while not shouldStart:
 
@@ -650,8 +865,18 @@ def main():
           break
         if event.type == QUIT:
           pygame.quit()
-          sys.exit()    
-    
+          sys.exit()
+        if event.type == pygame.KEYDOWN:    
+          if event.key == pygame.K_UP:
+            ROUNDS += 1  
+          if event.key == pygame.K_DOWN:
+            ROUNDS -= 1  
+
+    if ROUNDS>10:
+      ROUNDS=3
+    elif ROUNDS<3:
+      ROUNDS=10        
+      
     ShowStartScreen()
     pygame.display.update()
     FramePerSec.tick(FPS)
@@ -660,24 +885,39 @@ def main():
   while True:
     
     initZeroScore()
+
+    pygame.mixer.music.load('sound/background1.ogg')
+    pygame.mixer.music.play(-1)
+   
     for current_round in range(1,ROUNDS+1):
       PLATSPEED = -2.0
+  
+      pygame.mixer.music.unpause()
+
+      # Re-Initialize all players and global elements
       initGlobalElements()
+      # Start Game loop which will
+      # return when either of the player losses
       RoundLoop( current_round )
+      # Clearing after the round is over 
       RoundOver()
 
+      # If a player wins majority of rounds,
+      # Declare the winner
       game_result = CheckIfGameOver()
       if not isinstance( game_result , bool ): 
         print("GAME OVER" ) 
         break
     
+
+    pygame.mixer.music.load('sound/background3.ogg')
+    pygame.mixer.music.play(-1)
     ShowWinScreen(game_result)
 
 def CheckIfRoundOver():
 
   # Check for player collision
   # and is one player is beneath another
-
   if pygame.sprite.collide_rect(player1,player2):
     
     if player1.rect.bottom<=player2.rect.top:
@@ -692,10 +932,10 @@ def CheckIfRoundOver():
     player2.score += 1
     return 2
   if pygame.sprite.collide_rect(thorn_plat,player2):
-    print("Player 1 updated")
     player1.score += 1
     return 1
 
+  # If for any other reasons player is dead
   if not player1.alive:
     player1.score += 1
     return 1
@@ -705,84 +945,26 @@ def CheckIfRoundOver():
 
   return False
 
+# -- Check if one of the player wins majority
+#    of rounds
 def CheckIfGameOver():  
 
-  if player1.score>=math.ceil(ROUNDS/2):
+  if player1.score>=math.floor(ROUNDS/2)+1:
     return 1
-  if player2.score>=math.ceil(ROUNDS/2):
+  if player2.score>=math.floor(ROUNDS/2)+1:
     return 2
   
   return False
 
 
-def PlayBackMusic():
-  pass
-
-class Laser(pygame.sprite.Sprite):
-  
-  def __init__(self,offset_x):
-    
-    super().__init__()
-
-    self.w = 10
-    self.h = base_plat.rect.bottom
-
-    self.laser_beam_img = os.listdir('laser/laser_beam')
-    self.laser_blast_img = os.listdir('laser/laser_blast')
-
-    self.beam_ctr = 0
-    self.blast_ctr = 0
-
-    self.offset_x = offset_x
-    self.end_time = pygame.time.get_ticks()+4000
-
-    self.rect = pygame.Rect( (self.offset_x,0) , (self.w,self.h) )
-
-  def draw(self,surface):
-
-    laser_img = pygame.image.load( 'laser/laser_beam/'+self.laser_beam_img[self.beam_ctr])
-    laser_img = pygame.transform.scale( laser_img , (self.w,self.h) )
-    surface.blit( laser_img , ( self.offset_x,0 ) )
-   
-    self.beam_ctr += 1
-    self.beam_ctr = self.beam_ctr%len(self.laser_beam_img)
-
-    laserb_img = pygame.image.load( 'laser/laser_blast/'+self.laser_blast_img[self.blast_ctr])
-    laserb_img = pygame.transform.scale( laserb_img , (2*self.w,2*self.w) )
-    surface.blit( laserb_img , ( self.offset_x-self.w/2 , base_plat.rect.top-self.w ) )
-    
-    self.blast_ctr += 1
-    self.blast_ctr = self.blast_ctr%len(self.laser_blast_img)
-
-laser_group = pygame.sprite.Group()
-
-def LaserShoot(offset_x):
-  newLaser = Laser(offset_x)
-  laser_group.add(newLaser)
-  all_sprites.add(newLaser)
-
-def laser_update():
-
-  for player in players:
-    if pygame.sprite.spritecollideany( player , laser_group , False ):
-      player.alive = False
-
-  for each_laser in laser_group:
-    if each_laser.end_time<pygame.time.get_ticks():
-      each_laser.kill()
-
-
+# -- Game loop where all spirites are rendered
 def RoundLoop(current_round):
 
+  # Get score before the round for score board
   score1 = player1.score
   score2 = player2.score
 
-  laser_ctr = 0
-  laserb_ctr = 0
-
   while True:
-
-    laser_update()
 
     for event in pygame.event.get():
       if event.type == QUIT:
@@ -802,17 +984,25 @@ def RoundLoop(current_round):
 
         if event.key == pygame.K_UP:
           player2.cancel_jump()  
-
-    PlayBackMusic()
-    # Background fill
-    background_img = pygame.image.load("background.png")
+    
+    # Background Image rendering
+    background_img = pygame.image.load("image_assets/background.png")
     background_img = pygame.transform.scale( background_img , (WIDTH,HEIGHT) )
     display_surface.blit( background_img,(0,0) )   
 
+    # Render score board
     ScoreBoard( current_round , (score1,score2) )
+
+    # As we want laser to behind the other sprites
+    for laser in laser_group:
+      laser.draw(display_surface)
 
     # Displaying all entities
     for entity in all_sprites:
+      
+      # So we do not render lasers again
+      if laser_group.has(entity): continue
+
       if entity==thorn_plat:
         display_surface.blit(entity.surf,(0,0))        
       else:
@@ -822,8 +1012,8 @@ def RoundLoop(current_round):
     pygame.display.update()
     FramePerSec.tick(FPS)
 
-    # PlatformGeneration()
-    # DestroyOutbounds()
+    PlatformGeneration()
+    DestroyOutbounds()
 
     # Update player position
     player1.move_WASD()
@@ -840,11 +1030,29 @@ def RoundLoop(current_round):
     
     round_result = CheckIfRoundOver()
     if not isinstance( round_result , bool ):
-        print("ROUND OVER" ) 
+        
+        # To let the explosions render at last and not directly
+        # cut to the next round
+        if len(explosion_group)==0:
+          pass
+        else:  
+          end_screen_time = pygame.time.get_ticks() + 1000
+          while pygame.time.get_ticks()<end_screen_time:
+            
+            pygame.display.update()
+            FramePerSec.tick(FPS)
+            for exp in explosion_group:
+              exp.draw(display_surface)
+          
         return
 
     PlayerInteract()
+    laser_update()
+    explosion_update()
 
+
+# -------------------------------------------------
+# Just call main function that takes care of game state management
 main()
 
 
