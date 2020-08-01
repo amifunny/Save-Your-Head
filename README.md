@@ -3,6 +3,10 @@
 
 A Two Player game with a fight to save their heads.
 
+<img src="Preview.JPG" width="100px" height="200px" />
+<img src="StartScreen.JPG" width="100px" height="200px" />
+<img src="Preview5.JPG" width="100px" height="200px" />
+
 ![Play1](Preview.JPG =100x) ![Start Screen](StartScreen.JPG =100x) ![Play2](Preview5.JPG =100x)
 
 ## Game Info
