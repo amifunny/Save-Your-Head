@@ -28,19 +28,25 @@ screen_bg = (52,120,195)
 screen_dark_bg = (28,71,119)
 screen_color = (255,255,255)
 GREEN = (29,141,102)
-dash_color = (245,122,34)
+dash_color = (246,155,73)
+# dash_color = (245,122,34)
 
 # Time controllers for platform generation
 newPlatGenTime = 1000
-newPlatGenElapse = 2000
+
+newPlatGenElapse = 3000
+MAX_newPlatGenElapse = 3000
+MIN_newPlatGenElapse = 2000
 
 # Change Speed of platforms
-newSpeedTime = 15000
-newSpeedElapse = 15000
+newSpeedTime = 30000
+newSpeedElapse = 30000
 
 PLATSPEED = -2.0
+MIN_PLATSPEED = -2.0
+MAX_PLATSPEED = -3.0
 
-PLAYER_NAMES = ['RED','GREEN']
+PLAYER_NAMES = ['RED','BLUE']
 PLAYER_IMG = [
   "image_assets/players/parrot.png",
   "image_assets/players/penguin.png",
@@ -52,7 +58,7 @@ FramePerSec = pygame.time.Clock()
 display_surface = pygame.display.set_mode( (WIDTH,HEIGHT) )
 pygame.display.set_caption("SAVE YOUR HEAD")
 
-game_icon = pygame.image.load("game_icon_small.png")
+game_icon = pygame.image.load("icons/game_icon_small.png")
 pygame.display.set_icon( game_icon )
 
 
@@ -165,6 +171,8 @@ class Player(pygame.sprite.Sprite):
     # New position of player due to velocity
     self.pos += self.vel + 0.5*self.acc
 
+    self.pos.y = min( self.pos.y , HEIGHT-PREV_HEIGHT )
+
     # This allow player to go into one end of screen
     # and appear out of another end
     if self.pos.x-self.w/2 > WIDTH:
@@ -193,11 +201,6 @@ class Player(pygame.sprite.Sprite):
     if self.vel.y >= 0:
       for hit in hits:
         if self.pos.y<hit.rect.bottom:
-
-          if self.jumping:
-            # SOUND
-            print("should play")
-            pygame.mixer.Sound('sound/platform_jump.ogg').play()
 
           self.jumping = False
           self.pos.y = hit.rect.top+1
@@ -267,9 +270,9 @@ class PlayerDash():
       player.power.x = 2*G
       self.double_power = True
       if pygame.time.get_ticks()>self.double_power_end:
-        self.double_power_end = pygame.time.get_ticks() + 10000
+        self.double_power_end = pygame.time.get_ticks() + 15000
       else:
-        self.double_power_end += 10000
+        self.double_power_end += 15000
 
   def draw(self,surface,player):
 
@@ -387,11 +390,11 @@ def PlayerInteract():
         else:
           direction = (direction/abs(direction)) * overlap_dist/2
           
-        other_player.pos.x = other_player.pos.x + direction
-        other_player.rect.centerx = other_player.rect.centerx + direction
+        other_player.pos.x = other_player.pos.x + direction * (player.power.x/other_player.power.x)
+        other_player.rect.centerx = other_player.rect.centerx + direction * (player.power.x/other_player.power.x)
 
-        player.pos.x = player.pos.x - direction
-        player.rect.centerx = player.rect.centerx - direction
+        player.pos.x = player.pos.x - direction * (other_player.power.x/player.power.x)
+        player.rect.centerx = player.rect.centerx - direction * (other_player.power.x/player.power.x)
 
 # -------------------------------------------------------------------------
 
@@ -443,10 +446,6 @@ def PlatformGeneration():
       # Set new platform genration time point
       newPlatGenTime = currentTimePoint + newPlatGenElapse
 
-      print("Platform generated")
-      print(newPlatGenTime)
-      print(pygame.time.get_ticks())
-
       p  = Platform()
       p.rect.center = (
                 random.randint( int(p.width/2), int(WIDTH-p.width/2) ),
@@ -457,9 +456,9 @@ def PlatformGeneration():
 
       # Not every platform will have some powerups,
       # Some probabilty is set to make powerups rare
-      if random.choices([0,1],[0.8,0.2])[0]==1:
+      if random.choices([0,1],[0.5,0.5])[0]==1:
         # Also Laser Bomb Probability is more, than other utilities
-        util = UtilityComponent( random.choices( list(utility_dict.keys()) , [0.3,0.5,0.2] )[0] )
+        util = UtilityComponent( random.choices( list(utility_dict.keys()) , [0.3,0.4,0.3] )[0] )
         util.speed = PLATSPEED
         util.rect.midbottom = (p.rect.centerx,p.rect.top-(5))
 
@@ -472,9 +471,9 @@ def PlatformGeneration():
   # After 'newSpeedElapse' time increase speed of platforms,
   # and also generation rate
   if currentTimePoint>=newSpeedTime:
-    newSpeedTime += newSpeedElapse
-    PLATSPEED = max( -3.0 , PLATSPEED-0.2 )
-    newPlatGenElapse = max( 1500 , newPlatGenElapse-100 )
+    newSpeedTime = currentTimePoint + newSpeedElapse
+    PLATSPEED = max( MAX_PLATSPEED , PLATSPEED - 0.2 )
+    newPlatGenElapse = max( MIN_newPlatGenElapse , newPlatGenElapse-100 )
 
 # -- Destroy Platforms and Utilities that go above the screen
 
@@ -650,7 +649,6 @@ class Explosion(pygame.sprite.Sprite):
     self.exp_ctr = self.exp_ctr%len(self.explosion_img)
 
 def make_explosion(exp_x,exp_y):
-  print(exp_x,exp_y)
   exp_object = Explosion(exp_x,exp_y)
   all_sprites.add( exp_object )
   explosion_group.add( exp_object )
@@ -712,11 +710,20 @@ def initGlobalElements():
   # -- Top Danger Thorns
   thorn_plat.width = WIDTH
   thorn_plat.height = 30
-  thorn_plat.image = pygame.image.load("image_assets/thorn.png")
-  thorn_plat.image = pygame.transform.flip(thorn_plat.image,False,True)
+  thorn_image = pygame.image.load("image_assets/thorn.png")
+  thorn_image = pygame.transform.flip(thorn_image,False,True)
+  thorn_image = pygame.transform.scale(thorn_image,(thorn_plat.height*2,thorn_plat.height))
+
   thorn_plat.surf = pygame.Surface((thorn_plat.width,thorn_plat.height))
+  thorn_template = pygame.Surface((thorn_plat.width,thorn_plat.height),pygame.SRCALPHA, 32)
+  thorn_template = thorn_template.convert_alpha()
+  
+  # Repeat tile the small image on surface
   for i in range(0,WIDTH,30):
-    thorn_plat.surf.blit( thorn_plat.image , (i,0) )
+    thorn_template.blit( thorn_image , (i,0) )
+
+  # Now this surface will be image of Platform
+  thorn_plat.image = thorn_template    
   thorn_plat.rect = thorn_plat.surf.get_rect(center=(WIDTH/2,thorn_plat.height/2))
   thorn_plat.moving = False
 
@@ -730,6 +737,13 @@ def initGlobalElements():
   platforms.add(base_plat)
   platforms.add(thorn_plat)
 
+  global PLATSPEED
+  global newPlatGenElapse
+
+  # Reset Platform Speed and generation time
+  PLATSPEED = MIN_PLATSPEED
+  newPlatGenElapse = MAX_newPlatGenElapse
+
 # ---------------------------------------------------
 
 # -- Render the welcome page shown
@@ -742,7 +756,7 @@ def ShowStartScreen():
 
   display_surface.fill( screen_bg )
 
-  game_image = pygame.image.load( 'game_icon_blue.png' )
+  game_image = pygame.image.load( 'icons/game_icon_blue.png' )
   game_image = pygame.transform.scale( game_image , (200,200) )
   rect = game_image.get_rect( center=(WIDTH/2,200) )
   display_surface.blit( game_image , rect )
@@ -823,7 +837,7 @@ def ScoreBoard(round_num,score_tuple):
   font = pygame.font.SysFont("ARIAL",30)
   rounds = font.render( "ROUND {}".format(round_num) ,True,GREEN )
   score_division = font.render( "{} : {}".format(score_tuple[0],score_tuple[1]),True,GREEN )
-  
+
   display_surface.blit( rounds , board_pos )
   display_surface.blit( score_division , (board_pos[0]+25,board_pos[1]+50) )
 
@@ -857,6 +871,10 @@ def main():
   shouldStart = False
   global ROUNDS
 
+  # Background Music for start screen
+  pygame.mixer.music.load('sound/background_start.ogg')
+  pygame.mixer.music.play(-1)
+
   while not shouldStart:
 
     for event in pygame.event.get():
@@ -886,11 +904,11 @@ def main():
     
     initZeroScore()
 
-    pygame.mixer.music.load('sound/background1.ogg')
+    # Game Music
+    pygame.mixer.music.load('sound/background_play.ogg')
     pygame.mixer.music.play(-1)
    
     for current_round in range(1,ROUNDS+1):
-      PLATSPEED = -2.0
   
       pygame.mixer.music.unpause()
 
@@ -910,8 +928,10 @@ def main():
         break
     
 
-    pygame.mixer.music.load('sound/background3.ogg')
+    # End screen music
+    pygame.mixer.music.load('sound/background_end.ogg')
     pygame.mixer.music.play(-1)
+
     ShowWinScreen(game_result)
 
 def CheckIfRoundOver():
@@ -920,12 +940,21 @@ def CheckIfRoundOver():
   # and is one player is beneath another
   if pygame.sprite.collide_rect(player1,player2):
     
-    if player1.rect.bottom<=player2.rect.top:
-      player1.score += 1
-      return 1
-    if player2.rect.bottom<=player2.rect.top:
-      player2.score += 1
-      return 2
+    center_dist_x = player1.rect.centerx - player2.rect.centerx
+    center_dist_y = player1.rect.centery - player2.rect.centery
+
+    # Check if x-axis overlap of players is more than 50%
+    if abs(center_dist_x)<=player1.w-0.5*player1.w:
+        # Check if players are overlapping along y-axis
+        if abs(center_dist_y)<player1.h:
+
+            # If distance is positive, Player2 is above Player1
+            if center_dist_y>0:
+                player2.score += 1
+                return 2            
+            if center_dist_y<0:
+                player1.score += 1
+                return 1            
 
   # If top thorn platform is touched by a player
   if pygame.sprite.collide_rect(thorn_plat,player1):
@@ -985,6 +1014,7 @@ def RoundLoop(current_round):
         if event.key == pygame.K_UP:
           player2.cancel_jump()  
     
+
     # Background Image rendering
     background_img = pygame.image.load("image_assets/background.png")
     background_img = pygame.transform.scale( background_img , (WIDTH,HEIGHT) )
@@ -1003,10 +1033,7 @@ def RoundLoop(current_round):
       # So we do not render lasers again
       if laser_group.has(entity): continue
 
-      if entity==thorn_plat:
-        display_surface.blit(entity.surf,(0,0))        
-      else:
-        entity.draw( display_surface )
+      entity.draw( display_surface )
 
     # Update and count Frame
     pygame.display.update()
@@ -1046,14 +1073,18 @@ def RoundLoop(current_round):
           
         return
 
+    # Handle horizontal player interaction
     PlayerInteract()
+    # Check if laser and explosion should end
     laser_update()
     explosion_update()
 
 
 # -------------------------------------------------
 # Just call main function that takes care of game state management
-main()
+
+if __name__ == '__main__':
+    main()
 
 
 
