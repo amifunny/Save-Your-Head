@@ -3,7 +3,7 @@
 
 A Two Player game with a fight to save their heads.
 
-![Play1](Preview.JPG = 100x) ![Start Screen](StartScreen.JPG = 100x) ![Play2](Preview5.JPG = 100x)
+![Play1](Preview.JPG =100x) ![Start Screen](StartScreen.JPG =100x) ![Play2](Preview5.JPG =100x)
 
 ## Game Info
 
