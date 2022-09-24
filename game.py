@@ -966,10 +966,10 @@ def CheckIfRoundOver():
 
   # If for any other reasons player is dead
   if not player1.alive:
-    player1.score += 1
+    player2.score += 1
     return 1
   if not player2.alive:
-    player2.score += 1
+    player1.score += 1
     return 2
 
   return False
